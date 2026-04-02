@@ -1,6 +1,7 @@
 {
-    "configuration": "LoopCore=1,EventsCore=1,USBMode=hwcdc,CDCOnBoot=cdc,MSCOnBoot=default,DFUOnBoot=default,UploadMode=cdc,PSRAM=enabled,PartitionScheme=tinyuf2,CPUFreq=240,FlashMode=qio,FlashSize=4M,UploadSpeed=921600,DebugLevel=none,EraseFlash=none",
-    "board": "esp32-bluepad32:esp32:adafruit_feather_esp32s3",
+    "configuration": "JTAGAdapter=default,PSRAM=disabled,FlashMode=qio,FlashSize=8M,LoopCore=1,EventsCore=1,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,PartitionScheme=default_8MB,CPUFreq=240,UploadSpeed=921600,DebugLevel=none,EraseFlash=none",
+    "board": "esp32-bluepad32:esp32:XIAO_ESP32S3",
     "sketch": "potatomelt\\potatomelt.ino",
-    "port": "COM3"
+    "port": "COM8",
+    "programmer": "esptool"
 }

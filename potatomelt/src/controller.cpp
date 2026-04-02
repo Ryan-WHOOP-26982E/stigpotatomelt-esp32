@@ -1,218 +1,140 @@
-#include <Bluepad32.h>
+// controller.cpp - SBUS receiver interface for Potatomelt
+//
+// Requires the "Bolder Flight Systems SBUS" library.
+// Install via Arduino Library Manager: search for "sbus" by Bolder Flight Systems.
+
 #include <Preferences.h>
+#include "lib/SbusReader.h"
 
 #include "controller.h"
 #include "melty_config.h"
 #include "subsystems/storage.h"
 
-ControllerPtr myControllers[BP32_MAX_GAMEPADS];
+// SBUS receiver on UART1
+HardwareSerial SBUSSerial(1);
+SbusReader sbus_rx(&SBUSSerial, SBUS_RX_PIN, SBUS_TX_PIN);
 
-// todo - save the trims & spin speed
-// todo - work out how to get these into melty_config.h properly
-int spin_target_rpms[] =  {600, 800, 1000, 1200, 1500, 1800, 2100, 2500, 3000};
+// RPM targets - adjust the list and NUM_TARGET_RPMS to taste
+int spin_target_rpms[] = {600, 800, 1000, 1200, 1500, 1800, 2100, 2500, 3000};
 float translation_trims[] = {1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2, 10.0};
 #define NUM_TARGET_RPMS 9
+#define NUM_TRANS_TRIMS 13
+
 int target_rpm_index = 3;
-
-#define NUM_TRANS_TRIMS 13;
 int target_trans_trim = 4;
-
 bool reverse_spin = false;
-bool connected = false;
 
-long last_updated_millis;
+long last_sbus_millis = 0;
 prev_state previous_state;
+ctrl_state current_state;
 
-// Rather than instantiate a new control state every time something updates, we just have two states
-// and swap pointers back and forth
-ctrl_state state_green;
-ctrl_state state_blue;
-
-ctrl_state* previous_ctrls = &state_green;
-ctrl_state* new_ctrls = &state_blue;
-bool prev_ctrls_are_green = true;
-
-ctrl_state* ctrl_update(bool upd8) {
-    long now = millis();
-
-    if (upd8) {
-        for (auto myController : myControllers) {
-            if (myController && myController->isConnected() && myController->hasData()) {
-                // create a new control state
-                last_updated_millis = now;
-                return get_state(myController);
-            }
-        }
-    }
-
-    // otherwise, recycle the existing control state
-    previous_ctrls->connected = connected;
-
-    // reset all the config buttons
-    previous_ctrls->trim_left = false;
-    previous_ctrls->trim_right = false;
-
-    // and check for control timeout
-    if (now - last_updated_millis > CONTROL_UPDATE_TIMEOUT_MS) {
-        previous_ctrls->alive = false;
-    }
-
-    return previous_ctrls;
+// Scale a raw SBUS value to the axis range used by the rest of the code (-512..512).
+// SBUS range is 172-1811, center is 992.
+static int sbus_to_axis(int16_t raw) {
+    int centered = (int)raw - SBUS_CENTER;
+    return constrain(centered * 512 / SBUS_HALF_RANGE, -512, 512);
 }
 
-// right now, this is only written and tested with an xbox bluetooth controller
-ctrl_state* get_state(ControllerPtr ctl) {
-    // todo - validate controller type
-    // todo - expand controller type support?
+void ctrl_init() {
+    sbus_rx.begin();
+}
 
-    // because we're processing a new update, we know the controller is alive
-    new_ctrls->alive = true;
+bool is_connected() {
+    return current_state.connected;
+}
 
-    // gotta hold down the throttle to spin
-    // this both gives us a dead-girl switch and a constantly-changing input to keep the packets flowing
-    new_ctrls->spin_requested = ctl->throttle() > CONTROL_THROTTLE_MINIMUM;
-
-    new_ctrls->translate_forback = ctl->axisRY();
-    new_ctrls->translate_lr = ctl->axisX(); // plumbing it through even though it currently isn't used
-    new_ctrls->turn_lr = ctl->axisRX();
-
-    // spin direction
-    if ((ctl->buttons() & XBOX_BUTTON_X) && !previous_state.reverse_spin_pressed) {
-        previous_state.reverse_spin_pressed = true;
-        reverse_spin = !reverse_spin;
-    } else if (!(ctl->buttons() & XBOX_BUTTON_X) && previous_state.reverse_spin_pressed) {
-        previous_state.reverse_spin_pressed = false;
+ctrl_state* ctrl_update(bool /*upd8*/) {
+    if (!sbus_rx.read()) {
+        // No new SBUS frame this cycle - check for timeout
+        if (millis() - last_sbus_millis > CONTROL_UPDATE_TIMEOUT_MS) {
+            current_state.alive = false;
+        }
+        // Trim outputs are edge-triggered; clear them each cycle with no new data
+        current_state.trim_left  = false;
+        current_state.trim_right = false;
+        return &current_state;
     }
 
-    new_ctrls->reverse_spin = reverse_spin;
+    const SbusReader::Data& data = sbus_rx.data();
+    last_sbus_millis = millis();
 
-    // target RPM adjustment
-    // forward on the xbox controller gives negative values, for some reason
-    // todo - make this only adjust while spinning?
-    int lstick = ctl->axisY();
+    // Failsafe: receiver lost signal from transmitter
+    if (data.failsafe || data.lost_frame) {
+        current_state.connected = false;
+        current_state.alive     = false;
+        return &current_state;
+    }
 
-    if ((abs(lstick) > CONTROL_SPIN_SPEED_DEADZONE) && !previous_state.spin_target_rpm_changed) {
-        // we've just gone past the threshold to change the target spin speed
+    current_state.connected = true;
+    current_state.alive     = true;
+
+    // --- Spin trigger ---
+    current_state.spin_requested = data.ch[SBUS_CH_THROTTLE] > SBUS_SPIN_THRESHOLD;
+
+    // --- Axis inputs ---
+    current_state.translate_forback = sbus_to_axis(data.ch[SBUS_CH_TRANSLATE]);
+    current_state.translate_lr      = sbus_to_axis(data.ch[SBUS_CH_TRANSLATE_LR]);
+    current_state.turn_lr           = sbus_to_axis(data.ch[SBUS_CH_TURN]);
+
+    // --- Reverse spin direction (toggle on switch rising edge) ---
+    bool rev_pressed = data.ch[SBUS_CH_REVERSE] > SBUS_SWITCH_THRESHOLD;
+    if (rev_pressed && !previous_state.reverse_spin_pressed) {
+        reverse_spin = !reverse_spin;
+    }
+    previous_state.reverse_spin_pressed = rev_pressed;
+    current_state.reverse_spin = reverse_spin;
+
+    // --- Target RPM adjustment (stick/dial, with deadzone) ---
+    int rpm_input = sbus_to_axis(data.ch[SBUS_CH_RPM_ADJUST]);
+    if (abs(rpm_input) > CONTROL_SPIN_SPEED_DEADZONE && !previous_state.spin_target_rpm_changed) {
         previous_state.spin_target_rpm_changed = true;
-        if (lstick < 0 && target_rpm_index < NUM_TARGET_RPMS-1) {
+        if (rpm_input < 0 && target_rpm_index < NUM_TARGET_RPMS - 1) {
             target_rpm_index++;
-        } else if (lstick > 0 && target_rpm_index > 0) {
+        } else if (rpm_input > 0 && target_rpm_index > 0) {
             target_rpm_index--;
         }
-
         get_active_store()->set_target_rpm(target_rpm_index);
-
-    } else if ((abs(lstick) < CONTROL_SPIN_SPEED_DEADZONE) && previous_state.spin_target_rpm_changed) {
-        // we've just dropped back beneath the threshold, reset the ability to change speed
+    } else if (abs(rpm_input) < CONTROL_SPIN_SPEED_DEADZONE) {
         previous_state.spin_target_rpm_changed = false;
     }
+    current_state.target_rpm = spin_target_rpms[target_rpm_index];
 
-    new_ctrls->target_rpm = spin_target_rpms[target_rpm_index];
+    // --- Translate trim (edge detect on momentary switches) ---
+    current_state.trim_left  = false;
+    current_state.trim_right = false;
 
-    // And the trim adjustments
-    // todo - save trim into config in appropriate places (trim- IMU. translate - ???)
-    int dpad = ctl->dpad();
-
-    new_ctrls->trim_left = false;
-    new_ctrls->trim_right = false;
-
-    // trim config, from the dpad
-    if ((dpad & XBOX_DPAD_UP) != previous_state.increase_translate_pressed) {
-        previous_state.increase_translate_pressed = !previous_state.increase_translate_pressed;
-        if (previous_state.increase_translate_pressed && target_trans_trim < NUM_TRANS_TRIMS-1) {
+    bool trim_up = data.ch[SBUS_CH_TRIM_TRANS_UP] > SBUS_SWITCH_THRESHOLD;
+    if (trim_up != previous_state.increase_translate_pressed) {
+        previous_state.increase_translate_pressed = trim_up;
+        if (trim_up && target_trans_trim < NUM_TRANS_TRIMS - 1) {
             target_trans_trim++;
             get_active_store()->set_trans_trim(target_trans_trim);
         }
     }
 
-    if ((dpad & XBOX_DPAD_DOWN) != previous_state.decrease_translate_pressed) {
-        previous_state.decrease_translate_pressed = !previous_state.decrease_translate_pressed;
-        if (previous_state.decrease_translate_pressed && target_trans_trim > 0) {
+    bool trim_down = data.ch[SBUS_CH_TRIM_TRANS_DOWN] > SBUS_SWITCH_THRESHOLD;
+    if (trim_down != previous_state.decrease_translate_pressed) {
+        previous_state.decrease_translate_pressed = trim_down;
+        if (trim_down && target_trans_trim > 0) {
             target_trans_trim--;
             get_active_store()->set_trans_trim(target_trans_trim);
         }
     }
 
-    new_ctrls->translate_trim = translation_trims[target_trans_trim];
+    current_state.translate_trim = translation_trims[target_trans_trim];
 
-    if ((dpad & XBOX_DPAD_LEFT) != previous_state.trim_left_pressed) {
-        previous_state.trim_left_pressed = !previous_state.trim_left_pressed;
-        if (previous_state.trim_left_pressed) {
-            new_ctrls->trim_left = true;
-        }
+    // --- Motor trim (fire once on rising edge) ---
+    bool tl = data.ch[SBUS_CH_TRIM_LEFT] > SBUS_SWITCH_THRESHOLD;
+    if (tl && !previous_state.trim_left_pressed) {
+        current_state.trim_left = true;
     }
+    previous_state.trim_left_pressed = tl;
 
-    if ((dpad & XBOX_DPAD_RIGHT) != previous_state.trim_right_pressed) {
-        previous_state.trim_right_pressed = !previous_state.trim_right_pressed;
-        if (previous_state.trim_right_pressed) {
-            new_ctrls->trim_right = true;
-        }
+    bool tr = data.ch[SBUS_CH_TRIM_RIGHT] > SBUS_SWITCH_THRESHOLD;
+    if (tr && !previous_state.trim_right_pressed) {
+        current_state.trim_right = true;
     }
+    previous_state.trim_right_pressed = tr;
 
-    // and swap which control set is active
-    if (prev_ctrls_are_green) {
-        previous_ctrls = &state_blue;
-        new_ctrls = &state_green;
-        prev_ctrls_are_green = false;
-    } else {
-        previous_ctrls = &state_green;
-        new_ctrls = &state_blue;
-        prev_ctrls_are_green = true;
-    }
-    
-    return previous_ctrls;
-}
-
-void ctrl_init() {
-    target_rpm_index = get_active_store()->get_target_rpm();
-    target_trans_trim = get_active_store()->get_trans_trim();
-}
-
-void on_connected_controller(ControllerPtr ctl) {
-    bool foundEmptySlot = false;
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myControllers[i] == nullptr) {
-            Serial.printf("CALLBACK: Controller is connected, index=%d\n", i);
-            // Additionally, you can get certain gamepad properties like:
-            // Model, VID, PID, BTAddr, flags, etc.
-            ControllerProperties properties = ctl->getProperties();
-            Serial.printf("Controller model: %s, VID=0x%04x, PID=0x%04x\n", ctl->getModelName().c_str(), properties.vendor_id,
-                           properties.product_id);
-            myControllers[i] = ctl;
-            foundEmptySlot = true;
-            break;
-        }
-    }
-    if (!foundEmptySlot) {
-        Serial.println("CALLBACK: Controller connected, but could not found empty slot");
-    }
-
-    connected = true;
-
-    // Anguirel says: There is an issue where scan_evt will timeout eventually causing something to print "FEX x y",
-    // (where x and y are various numbers) to the console and then eventually crash. Possible occurence of
-    // https://github.com/ricardoquesada/bluepad32/issues/43.  The reported workaround is to disable scanning
-    // for new controllers once a controller has connected.
-    BP32.enableNewBluetoothConnections(false);
-}
-
-void on_disconnected_controller(ControllerPtr ctl) {
-    connected = false;
-
-    bool foundController = false;
-
-    for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-        if (myControllers[i] == ctl) {
-            Serial.printf("CALLBACK: Controller disconnected from index=%d\n", i);
-            myControllers[i] = nullptr;
-            foundController = true;
-            break;
-        }
-    }
-
-    if (!foundController) {
-        Serial.println("CALLBACK: Controller disconnected, but not found in myControllers");
-    }
-
-    BP32.enableNewBluetoothConnections(true);
+    return &current_state;
 }

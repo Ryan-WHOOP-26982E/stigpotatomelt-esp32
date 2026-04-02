@@ -1,5 +1,9 @@
 #include <Arduino.h>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #include <driver/rmt.h>
+#pragma GCC diagnostic pop
 #include "led.h"
 #include "../melty_config.h"
 

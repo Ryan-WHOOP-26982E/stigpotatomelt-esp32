@@ -7,21 +7,18 @@
 #define CONTROL_UPDATE_TIMEOUT_MS 3000
 
 // ------------ Spin control settings ----------------
-#define ACCELEROMETER_HARDWARE_RADIUS_CM 5.13f
-// Ant-tato distance: 3.415f
-// Beetle-tato distance: 5.13f
+#define ACCELEROMETER_HARDWARE_RADIUS_CM 2.738f
 #define LED_OFFSET_PERCENT 47
 
 #define LEFT_RIGHT_HEADING_CONTROL_DIVISOR 2.0f   // How quick steering while melting is (larger values = slower)
 #define MIN_TRACKING_RPM 400
-#define MAX_TRACKING_ROTATION_INTERVAL_US (1.0f / MIN_TRACKING_RPM) * 60 * 1000 * 1000 // don't track heading if we are this slow (also puts upper limit on time spent in melty loop for safety)
+#define MAX_TRACKING_ROTATION_INTERVAL_US (1.0f / MIN_TRACKING_RPM) * 60 * 1000 * 1000 // don't track heading if we are this slow
 
-#define MAX_TRACKING_RPM 3000;
+#define MAX_TRACKING_RPM 3000
 
 // ------------ control parameters -------------------
 #define CONTROL_TRANSLATE_DEADZONE 50
 #define CONTROL_SPIN_SPEED_DEADZONE 200
-#define CONTROL_THROTTLE_MINIMUM 500
 
 #define TANK_FORBACK_POWER_SCALE 0.02f // Scale the power waaaaay down on tank mode
 #define TANK_TURNING_POWER_SCALE 0.005f // because we're sitting on a pair of ungeared brushless motors
@@ -29,16 +26,32 @@
 // ------------ PID tuning ---------------------------
 // Tuning PIDs is an art. See: https://pidexplained.com/how-to-tune-a-pid-controller/
 
-#define PID_KP 1.0                                  // Proportional Gain - higher values give more sensitivity, lower values give more stability
-#define PID_KI 0.4                                  // Integral - damping on the rebound curves. Lower values = slower to respond, but less bounces
-#define PID_KD 0.0                                  // Derivative - useful to prevent overshoot of target value.
+#define PID_KP 1.0                                  // Proportional Gain
+#define PID_KI 0.4                                  // Integral
+#define PID_KD 0.0                                  // Derivative
 
-// ------------- controller button mappings ----------
-#define XBOX_DPAD_UP 0x01
-#define XBOX_DPAD_RIGHT 0x04
-#define XBOX_DPAD_DOWN 0x02
-#define XBOX_DPAD_LEFT 0x08
-#define XBOX_BUTTON_X 0x04
+// ------------ SBUS receiver configuration ----------
+// Receiver TX → D7 (GPIO44) on XIAO ESP32-S3
+// Receiver RX → D6 (GPIO43) on XIAO ESP32-S3 (not needed for receive-only SBUS)
+#define SBUS_RX_PIN D7              // Receiver TX → D7 on XIAO ESP32-S3
+#define SBUS_TX_PIN D6              // Receiver RX → D6 (not used for receive-only)
+#define SBUS_CENTER 992             // SBUS center value (full range: 172–1811)
+#define SBUS_HALF_RANGE 820         // (1811 - 172) / 2
+#define SBUS_SPIN_THRESHOLD 1400    // Throttle channel above this = spin requested
+#define SBUS_SWITCH_THRESHOLD 1400  // Any switch channel above this = ON
+
+// SBUS channel mapping (0-indexed: CH1 on transmitter = index 0)
+// Adjust these to match your transmitter's channel assignments.
+#define SBUS_CH_TURN            0   // CH1: Heading turn        (right stick X)
+#define SBUS_CH_TRANSLATE       2   // CH2: Forward/back        (right stick Y)
+#define SBUS_CH_THROTTLE        1   // CH3: Spin trigger        (left stick Y / throttle)
+#define SBUS_CH_TRANSLATE_LR    3   // CH4: Left/right trans.   (reserved, not currently used)
+#define SBUS_CH_REVERSE         4   // CH5: Reverse spin dir.   (switch)
+#define SBUS_CH_RPM_ADJUST      9   // CH6: Target RPM adjust   (switch or dial)
+#define SBUS_CH_TRIM_TRANS_UP   6   // CH7: Increase trans trim (momentary switch)
+#define SBUS_CH_TRIM_TRANS_DOWN 7   // CH8: Decrease trans trim (momentary switch)
+#define SBUS_CH_TRIM_LEFT       5   // CH9: Motor trim left     (momentary switch)
+#define SBUS_CH_TRIM_RIGHT      8   // CH10: Motor trim right   (momentary switch)
 
 // ------------ Pin and RMT Mappings -----------------
 
@@ -58,9 +71,8 @@
 
 #define BATTERY_ALERT_ENABLED                     // if enabled - heading LED will flicker when battery voltage is low
 #define BATTERY_CRIT_HALT_ENABLED                 // if enabled - robot will halt when battery voltage is critically low
-#define BATTERY_VOLTAGE_DIVIDER 8.24              // From the PCB - what's the voltage divider betweeen the battery + and the sense line?
-#define BATTERY_CELL_COUNT 4                      // How many cells are in the battery?
-// Beetle-tato count: 4
-#define BATTERY_CELL_FULL_VOLTAGE 4.2             // What voltage is a fully-charged cell? Standard lipos are 4.2v, other chemistries will vary
-#define BATTERY_CELL_EMPTY_VOLTAGE 3.2            // And on the other hand, what voltage is an empty cell? We're going to cut off at 3.2v/cell
-#define LOW_BAT_REPEAT_READS_BEFORE_ALARM 20      // Requires this many ADC reads below threshold before halting the robot
+#define BATTERY_VOLTAGE_DIVIDER 8.24              // From the PCB - what's the voltage divider between the battery + and the sense line?
+#define BATTERY_CELL_COUNT 3                      // 3S LiPo
+#define BATTERY_CELL_FULL_VOLTAGE 4.2             // Fully-charged cell voltage (standard LiPo)
+#define BATTERY_CELL_EMPTY_VOLTAGE 3.2            // Empty cell voltage cutoff
+#define LOW_BAT_REPEAT_READS_BEFORE_ALARM 20      // Requires this many ADC reads below threshold before halting

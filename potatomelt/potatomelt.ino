@@ -47,8 +47,8 @@ void setup() {
     robot.init();
     state = NO_CONTROLLER;
 
-    // start the control interface
-    BP32.setup(&on_connected_controller, &on_disconnected_controller);
+    // start the SBUS control interface
+    ctrl_init();
 
     // and start the hot loop - it'll be managing LEDs and motors
     xTaskCreatePinnedToCore(
@@ -88,8 +88,6 @@ void calculate_melty_params(spin_control_parameters_t* params, ctrl_state* c) {
     if (led_on_portion < 0.10f) led_on_portion = 0.10f;
     if (led_on_portion > 0.90f) led_on_portion = 0.90f;
 
-    double led_on_fraction = led_on_portion;
-
     double led_on_us = (long) (led_on_portion * rotation_us);
     double led_offset_us = (long) (LED_OFFSET_PERCENT * rotation_us / 100);
 
@@ -122,9 +120,7 @@ void calculate_melty_params(spin_control_parameters_t* params, ctrl_state* c) {
 // Arduino loop function. Runs in CPU 1.
 // todo - low-battery state
 void loop() {
-    bool upd8 = BP32.update();
-
-    ctrl_state* c = ctrl_update(upd8); 
+    ctrl_state* c = ctrl_update(true);
 
     if (!c->connected) {
         throttle_pid.SetMode(MANUAL);
@@ -176,7 +172,6 @@ void hotloopFN(void* parameter) {
         // do the magic stuff
         robot.update_loop(state, &control_params, &tank_params);
 
-        //TODO: Update this to a proper, configurable delay - probably 1-4khz
-        vTaskDelay(1);
+        //TODO: Up
     }
 }
