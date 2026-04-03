@@ -12,6 +12,5 @@ class LED {
         void leds_on_gradient(int color);
         void leds_off();
     private:
-        void leds_on_rgb(int red, int green, int blue);
-        void write_pixel();
+        void set_leds(bool on);
 };

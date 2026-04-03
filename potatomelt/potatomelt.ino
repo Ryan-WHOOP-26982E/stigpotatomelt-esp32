@@ -152,8 +152,16 @@ void loop() {
         robot.trim_accel(true, c->target_rpm);
     }
 
-    if (millis() - last_logged_at > 500) {
-        Serial.printf("Controller: connected: %d alive: %d spin: %d vThrottle: %d | battery: %d | IMU correction %f \n", c->connected, c->alive, c->spin_requested, c->target_rpm, robot.get_battery(), robot.get_accel_trim(c->target_rpm));
+    if (millis() - last_logged_at > 200) {
+        Serial.printf(
+            "conn:%d alive:%d | spin:%d fwd:%4d turn:%4d | accel1:%.3f accel2:%.3f rpm_calc:%.1f | trim:%.4f | bat:%d\n",
+            c->connected, c->alive,
+            c->spin_requested, c->translate_forback, c->turn_lr,
+            robot.get_accel_1_g(), robot.get_accel_2_g(),
+            robot.get_rpm(c->target_rpm),
+            robot.get_accel_trim(c->target_rpm),
+            robot.get_battery()
+        );
         last_logged_at = millis();
     }
 

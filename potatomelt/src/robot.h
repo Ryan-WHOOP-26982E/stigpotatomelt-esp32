@@ -41,6 +41,8 @@ class Robot {
         int get_battery();
         void trim_accel(bool increase, int target_rpm);
         float get_accel_trim(int target_rpm);
+        float get_accel_1_g();
+        float get_accel_2_g();
     private:
         void motors_stop();
         void drive_tank(tank_control_parameters_t* params);

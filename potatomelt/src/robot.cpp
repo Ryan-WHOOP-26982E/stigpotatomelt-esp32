@@ -121,8 +121,16 @@ float Robot::get_accel_trim(int target_rpm) {
   return imu.get_trim(target_rpm);
 }
 
+float Robot::get_accel_1_g() {
+  return imu.get_accel_1_g();
+}
+
+float Robot::get_accel_2_g() {
+  return imu.get_accel_2_g();
+}
+
 void Robot::init() {
     imu.init();
-    motor1.begin(DSHOT300);
-    motor2.begin(DSHOT300);
+    motor1.begin(DSHOT600);
+    motor2.begin(DSHOT600);
 }
