@@ -75,12 +75,10 @@ void LIS331ESP::setODR(data_rate drate)
 void LIS331ESP::readAxes(int16_t &x, int16_t &y, int16_t &z)
 {
   uint8_t data[6]; // create a buffer for our incoming data
-  LIS331_read(OUT_X_L, &data[0], 1);
-  LIS331_read(OUT_X_H, &data[1], 1);
-  LIS331_read(OUT_Y_L, &data[2], 1);
-  LIS331_read(OUT_Y_H, &data[3], 1);
-  LIS331_read(OUT_Z_L, &data[4], 1);
-  LIS331_read(OUT_Z_H, &data[5], 1);
+  // Burst read all 6 axis bytes in one I2C transaction.
+  // LIS331 supports auto-increment when bit 7 of the register address is set (0x28 | 0x80 = 0xA8).
+  // This reads OUT_X_L, OUT_X_H, OUT_Y_L, OUT_Y_H, OUT_Z_L, OUT_Z_H consecutively.
+  LIS331_read(OUT_X_L | 0x80, data, 6);
   // The data that comes out is 12-bit data, left justified, so the lower
   //  four bits of the data are always zero. We need to right shift by four,
   //  then typecase the upper data to an integer type so it does a signed
@@ -391,11 +389,11 @@ void LIS331ESP::LIS331_read(uint8_t reg_address, uint8_t *data, uint8_t len)
     // I2C read handling code
     Wire.beginTransmission(address);
     Wire.write(reg_address);
-    Wire.endTransmission();
+    Wire.endTransmission(false);  // repeated start — keeps bus held, avoids STOP+START overhead
     Wire.requestFrom(address, len);
     for (int i = 0; i<len; i++)
     {
-      data[i] = Wire.read();
+      data[i] = Wire.available() ? Wire.read() : 0;
     }
   }
   else

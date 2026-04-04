@@ -6,6 +6,14 @@
 #include "src/controller.h"
 #include "src/subsystems/storage.h"
 
+#ifdef TELEMETRY_ENABLED
+#include <WiFi.h>
+#include <WiFiUdp.h>
+WiFiUDP telemetry_udp;
+IPAddress telemetry_host;
+static int telemetry_send_counter = 0;
+#endif
+
 TaskHandle_t hotloop;
 
 Robot robot;
@@ -17,6 +25,13 @@ tank_control_parameters_t tank_params;
 Storage store;
 
 long last_logged_at = 0;
+
+// Spin data logger — captures RPM + throttle during spin, dumps to serial on stop
+#define SPIN_LOG_SIZE 400
+struct SpinLogEntry { uint32_t ms; float rpm; int throttle; };
+SpinLogEntry spin_log[SPIN_LOG_SIZE];
+int spin_log_idx = 0;
+bool was_spinning = false;
 
 // Variables for the PID - it doesn't take args directly, just gets pointers to these
 double pid_current_rpm = 0.0; // Input to the PID: The current RPM
@@ -31,12 +46,34 @@ PID throttle_pid(&pid_current_rpm, &pid_throttle_output, &pid_target_rpm, PID_KP
 // Arduino setup function. Runs in CPU 1
 void setup() {
     Serial.begin(115200);
+    delay(1500); // wait for USB CDC serial to connect before printing boot messages
+
     Serial.println("PotatoMelt startup");
+
+    // Print last spin log if one was saved before reset
+    {
+        Preferences prefs;
+        prefs.begin("spinlog", true);
+        int count = prefs.getInt("count", 0);
+        if (count > 0) {
+            uint32_t dur = prefs.getUInt("dur", 0);
+            float maxrpm = prefs.getFloat("maxrpm", 0);
+            float avgrpm = prefs.getFloat("avgrpm", 0);
+            int maxthr = prefs.getInt("maxthr", 0);
+            float loop_ms = dur > 0 ? (float)dur / count : 0;
+            Serial.printf("=== LAST SPIN: %d entries / %ums = %.1fms/loop | maxRPM:%.0f avgRPM:%.0f maxThr:%d ===\n",
+                count, dur, loop_ms, maxrpm, avgrpm, maxthr);
+            prefs.end();
+            prefs.begin("spinlog", false);
+            prefs.putInt("count", 0);
+        } else {
+            Serial.println("=== No previous spin log ===");
+        }
+        prefs.end();
+    }
 
     // set up I2C
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-    Wire.setClock(100000);
-    Wire.setTimeOut(10);
 
     // start data storage and recall
     store.init();
@@ -44,12 +81,23 @@ void setup() {
     // Configure the PID
     throttle_pid.SetOutputLimits(0.0, 1023.0);
 
-    // start the robot subsystems
+    // start the robot subsystems (SparkFun LIS331 library calls Wire.begin()
+    // internally, which resets clock and timeout — so we re-apply them AFTER)
     robot.init();
+    Wire.setClock(400000);  // back to 400kHz — faster reads, fewer retries
+    Wire.setTimeOut(10);
     state = NO_CONTROLLER;
 
     // start the SBUS control interface
     ctrl_init();
+
+#ifdef TELEMETRY_ENABLED
+    WiFi.softAP(TELEMETRY_WIFI_SSID, TELEMETRY_WIFI_PASS);
+    telemetry_host.fromString(TELEMETRY_UDP_HOST);
+    telemetry_udp.begin(TELEMETRY_UDP_PORT);
+    Serial.printf("Telemetry: connect to WiFi '%s' | UDP %s:%d\n",
+        TELEMETRY_WIFI_SSID, TELEMETRY_UDP_HOST, TELEMETRY_UDP_PORT);
+#endif
 
     // and start the hot loop - it'll be managing LEDs and motors
     xTaskCreatePinnedToCore(
@@ -124,6 +172,12 @@ void calculate_melty_params(spin_control_parameters_t* params, ctrl_state* c) {
 // Arduino loop function. Runs in CPU 1.
 // todo - low-battery state
 void loop() {
+    // Measure actual time between loop() invocations (includes vTaskDelay)
+    static uint32_t last_loop_start_us = 0;
+    uint32_t loop_start_us = micros();
+    uint32_t loop_elapsed_us = loop_start_us - last_loop_start_us;
+    last_loop_start_us = loop_start_us;
+
     ctrl_state* c = ctrl_update(true);
 
     if (!c->connected) {
@@ -148,6 +202,35 @@ void loop() {
         tank_params.turn_lr = c->turn_lr;
     }
 
+    // Log RPM + throttle while spinning; dump to serial the moment spin stops
+    if (state == SPINNING) {
+        if (!was_spinning) { spin_log_idx = 0; was_spinning = true; } // reset on new spin
+        if (spin_log_idx < SPIN_LOG_SIZE) {
+            spin_log[spin_log_idx++] = { millis(), (float)pid_current_rpm, (int)pid_throttle_output };
+        }
+    } else if (was_spinning) {
+        was_spinning = false;
+        // Save summary to NVS so it survives the USB reset when plugging back in
+        if (spin_log_idx > 1) {
+            float max_rpm = 0, sum_rpm = 0;
+            int max_thr = 0;
+            uint32_t duration_ms = spin_log[spin_log_idx-1].ms - spin_log[0].ms;
+            for (int i = 0; i < spin_log_idx; i++) {
+                if (spin_log[i].rpm > max_rpm) max_rpm = spin_log[i].rpm;
+                if (spin_log[i].throttle > max_thr) max_thr = spin_log[i].throttle;
+                sum_rpm += spin_log[i].rpm;
+            }
+            Preferences prefs;
+            prefs.begin("spinlog", false);
+            prefs.putInt("count", spin_log_idx);
+            prefs.putUInt("dur", duration_ms);
+            prefs.putFloat("maxrpm", max_rpm);
+            prefs.putFloat("avgrpm", sum_rpm / spin_log_idx);
+            prefs.putInt("maxthr", max_thr);
+            prefs.end();
+        }
+    }
+
     if (c->trim_right) {
         robot.trim_accel(false, c->target_rpm);
     }
@@ -157,35 +240,58 @@ void loop() {
     }
 
     if (millis() - last_logged_at > 200) {
-        // state: 0=NO_CONTROLLER 1=CONTROLLER_STALE 2=READY 3=SPINNING
+        // state: 0=SPINNING 1=READY 2=LOW_BAT 3=STALE 4=NO_CTRL
+        // pid_current_rpm is updated each spin loop — no I2C read here
         Serial.printf(
-            "state:%d conn:%d alive:%d | spin:%d fwd:%4d turn:%4d | accel1:%.3f accel2:%.3f rpm_calc:%.1f | trim:%.4f | bat:%d\n",
+            "state:%d conn:%d alive:%d | spin:%d fwd:%4d turn:%4d | rpm:%.1f | trim:%.4f | bat:%d | loop:%.1fms\n",
             (int)state,
             c->connected, c->alive,
             c->spin_requested, c->translate_forback, c->turn_lr,
-            robot.get_accel_1_g(), robot.get_accel_2_g(),
-            robot.get_rpm(c->target_rpm),
+            (float)pid_current_rpm,
             robot.get_accel_trim(c->target_rpm),
-            robot.get_battery()
+            robot.get_battery(),
+            loop_elapsed_us / 1000.0f
         );
         last_logged_at = millis();
     }
 
-    // The main loop must have some kind of "yield to lower priority task" event.
-    // Otherwise, the watchdog will get triggered.
-    // If your main loop doesn't have one, just add a simple `vTaskDelay(1)`.
-    // Detailed info here:
-    // https://stackoverflow.com/questions/66278271/task-watchdog-got-triggered-the-tasks-did-not-reset-the-watchdog-in-time
+#ifdef TELEMETRY_ENABLED
+    // Send UDP telemetry packet every TELEMETRY_SEND_EVERY_N loops.
+    // CSV format: ms,state,target_rpm,rpm,throttle,bat,connected,loop_us,trim
+    // NOTE: WiFi task runs on core 0 alongside hotloop — disable for arena runs.
+    if (++telemetry_send_counter >= TELEMETRY_SEND_EVERY_N) {
+        telemetry_send_counter = 0;
+        char pkt[128];
+        int n = snprintf(pkt, sizeof(pkt), "%lu,%d,%d,%.1f,%.1f,%d,%d,%lu,%.4f\n",
+            (unsigned long)millis(),
+            (int)state,
+            (int)pid_target_rpm,
+            (float)pid_current_rpm,
+            (float)pid_throttle_output,
+            robot.get_battery(),
+            (int)c->connected,
+            (unsigned long)loop_elapsed_us,
+            robot.get_accel_trim(c->target_rpm)
+        );
+        telemetry_udp.beginPacket(telemetry_host, TELEMETRY_UDP_PORT);
+        telemetry_udp.write((uint8_t*)pkt, n);
+        telemetry_udp.endPacket();
+    }
+#endif
 
-    vTaskDelay(10);
+    // Yield 1 tick to prevent watchdog and allow lower-priority tasks to run.
+    // vTaskDelay(10) was used here but caused ~35ms loops on ESP32-S3 because
+    // Seeed's board package configures FreeRTOS at 250Hz (4ms/tick), so
+    // vTaskDelay(10) = 40ms, not 10ms. vTaskDelay(1) yields the minimum
+    // (1 tick = ~4ms), letting the I2C read and loop body set the natural rate.
+    vTaskDelay(1);
 }
 
 // The robot control loop. Runs in CPU 0.
 void hotloopFN(void* parameter) {
     while(true) {
-        // do the magic stuff
         robot.update_loop(state, &control_params, &tank_params);
+        vTaskDelay(1); // ~1ms yield - limits DShot to ~1kHz, well within ESC spec
 
-        //TODO: Up
-    }
+      }
 }

@@ -230,6 +230,7 @@
                 "C:\\Users\\Ryan\\Documents\\Arduino\\libraries\\PID",
                 "C:\\Users\\Ryan\\AppData\\Local\\Arduino15\\packages\\esp32-bluepad32\\hardware\\esp32\\4.1.0\\libraries\\Preferences\\src",
                 "C:\\Users\\Ryan\\AppData\\Local\\Arduino15\\packages\\esp32-bluepad32\\hardware\\esp32\\4.1.0\\libraries\\Wire\\src",
+                "C:\\Users\\Ryan\\AppData\\Local\\Arduino15\\packages\\esp32-bluepad32\\hardware\\esp32\\4.1.0\\libraries\\WiFi\\src",
                 "C:\\Users\\Ryan\\AppData\\Local\\Arduino15\\packages\\esp32-bluepad32\\hardware\\esp32\\4.1.0\\libraries\\SPI\\src",
                 "c:\\users\\ryan\\appdata\\local\\arduino15\\packages\\esp32\\tools\\xtensa-esp32s3-elf-gcc\\esp-2021r2-patch5-8.4.0\\xtensa-esp32s3-elf\\include\\c++\\8.4.0",
                 "c:\\users\\ryan\\appdata\\local\\arduino15\\packages\\esp32\\tools\\xtensa-esp32s3-elf-gcc\\esp-2021r2-patch5-8.4.0\\xtensa-esp32s3-elf\\include\\c++\\8.4.0\\xtensa-esp32s3-elf",

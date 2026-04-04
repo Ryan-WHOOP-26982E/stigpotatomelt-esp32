@@ -9,6 +9,7 @@ void Accelerometer::init(int addr) {
     lis.setI2CAddr(addr);
     lis.begin(LIS331ESP::USE_I2C);
     lis.setFullScale(LIS331ESP::HIGH_RANGE);
+    lis.setODR(LIS331ESP::DR_400HZ);  // default is 50Hz — way too slow for a 10ms loop
 }
 
 // Assumption: We're only calling this when the bot is at rest, right-side-up, in a 1g environment.

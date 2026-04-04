@@ -67,6 +67,17 @@
 #define I2C_SCL_PIN 6
 #define BATTERY_ADC_PIN 10
 
+// ------------ WiFi Telemetry -----------------------
+// Comment out TELEMETRY_ENABLED to disable WiFi entirely (e.g. for arena runs)
+#define TELEMETRY_ENABLED
+#define TELEMETRY_WIFI_SSID     "potatomelt"
+#define TELEMETRY_WIFI_PASS     "potato123"
+#define TELEMETRY_UDP_PORT      4210
+// Broadcast on the ESP32 SoftAP subnet (default: 192.168.4.255)
+#define TELEMETRY_UDP_HOST      "192.168.4.255"
+// Send one UDP packet every N main-loop iterations (1 = every loop, ~100Hz at 10ms)
+#define TELEMETRY_SEND_EVERY_N  1
+
 // ------------ Battery Configuration ---------------
 
 #define BATTERY_ALERT_ENABLED                     // if enabled - heading LED will flicker when battery voltage is low
