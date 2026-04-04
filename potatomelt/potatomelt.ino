@@ -61,8 +61,8 @@ void setup() {
         0          // core affinity
     );
 
-    pinMode(2, OUTPUT);
-    digitalWrite(2, HIGH);
+    //pinMode(2, OUTPUT);
+    //digitalWrite(2, HIGH);
 }
 
 // This function is the core of the control loop
