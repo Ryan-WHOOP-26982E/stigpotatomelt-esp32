@@ -130,6 +130,7 @@ float Robot::get_accel_2_g() {
 }
 
 void Robot::init() {
+    leds.init();   // Must come first — configures LED pins while Arduino GPIO driver is ready
     imu.init();
     motor1.begin(DSHOT600);
     motor2.begin(DSHOT600);

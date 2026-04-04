@@ -20,8 +20,8 @@
 #define CONTROL_TRANSLATE_DEADZONE 50
 #define CONTROL_SPIN_SPEED_DEADZONE 200
 
-#define TANK_FORBACK_POWER_SCALE 0.02f // Scale the power waaaaay down on tank mode
-#define TANK_TURNING_POWER_SCALE 0.005f // because we're sitting on a pair of ungeared brushless motors
+#define TANK_FORBACK_POWER_SCALE 0.15f  // Scale power down for ungeared brushless motors (was 0.02 - too low for ESC threshold)
+#define TANK_TURNING_POWER_SCALE 0.08f  // Turning scale (was 0.005 - too low for ESC threshold)
 
 // ------------ PID tuning ---------------------------
 // Tuning PIDs is an art. See: https://pidexplained.com/how-to-tune-a-pid-controller/

@@ -3,6 +3,7 @@
 class LED {
     public:
         LED();
+        void init();  // Call from Robot::init() after Arduino framework is ready
 
         void leds_on_ready();
         void leds_on_low_battery();

@@ -60,6 +60,9 @@ void setup() {
         &hotloop,  // task handle (if we want to interact with the task)
         0          // core affinity
     );
+
+    pinMode(2, OUTPUT);
+    digitalWrite(2, HIGH);
 }
 
 // This function is the core of the control loop
@@ -153,8 +156,10 @@ void loop() {
     }
 
     if (millis() - last_logged_at > 200) {
+        // state: 0=NO_CONTROLLER 1=CONTROLLER_STALE 2=READY 3=SPINNING
         Serial.printf(
-            "conn:%d alive:%d | spin:%d fwd:%4d turn:%4d | accel1:%.3f accel2:%.3f rpm_calc:%.1f | trim:%.4f | bat:%d\n",
+            "state:%d conn:%d alive:%d | spin:%d fwd:%4d turn:%4d | accel1:%.3f accel2:%.3f rpm_calc:%.1f | trim:%.4f | bat:%d\n",
+            (int)state,
             c->connected, c->alive,
             c->spin_requested, c->translate_forback, c->turn_lr,
             robot.get_accel_1_g(), robot.get_accel_2_g(),

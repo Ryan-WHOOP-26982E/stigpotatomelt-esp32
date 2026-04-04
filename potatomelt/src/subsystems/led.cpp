@@ -3,6 +3,11 @@
 #include "../melty_config.h"
 
 LED::LED() {
+    // Pin setup deferred to init() so it runs after Arduino GPIO driver is ready
+}
+
+// Call this from Robot::init() — guarantees pinMode runs after setup() begins
+void LED::init() {
     pinMode(LED_1_PIN, OUTPUT);
     pinMode(LED_2_PIN, OUTPUT);
     set_leds(false);
