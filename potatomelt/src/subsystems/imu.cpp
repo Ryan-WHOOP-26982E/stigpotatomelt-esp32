@@ -6,7 +6,7 @@
 #include "../melty_config.h"
 
 Accelerometer lis1;
-Accelerometer lis2;
+// lis2 not installed — all lis2 reads removed to eliminate I2C timeout latency
 
 float accel_correction_factor = 1.0;
 
@@ -17,17 +17,14 @@ IMU::IMU() {
 
 void IMU::init() {
     lis1.init(0x18);
-    lis2.init(0x19);
 
     delay(20); // short pause for accelerometer warmup - we get weird results if we just dive right in
     set_z_offset();
 }
 
 void IMU::set_z_offset() {
-    //todo - save offset into config?
     for(int i = 0; i < 60; i++) {
         lis1.sample_offset();
-        lis2.sample_offset();
         delay(1);
     }
 }
@@ -35,8 +32,7 @@ void IMU::set_z_offset() {
 // to be called every hit of loop()
 // todo - rethink this
 void IMU::poll() {
-    float avg_z_g = (lis1.get_z_accel() + lis2.get_z_accel()) / 2;
-    
+    float avg_z_g = lis1.get_z_accel();
     z_accel_buffer *= 0.5;
     z_accel_buffer += (0.5 * avg_z_g);
 }
@@ -67,10 +63,7 @@ float IMU::get_rpm(int target_rpm) {
         get_accel_correction(target_rpm);
     }
 
-    float lis1_g = lis1.get_xy_accel();
-    float lis2_g = lis2.get_xy_accel();
-
-    float avg_g = (lis1_g + lis2_g) / 2;
+    float avg_g = lis1.get_xy_accel();
     float rpm = fabs(avg_g) * 89445.0f;
     rpm = rpm / ACCELEROMETER_HARDWARE_RADIUS_CM;
     rpm = sqrt(rpm);
@@ -84,7 +77,7 @@ float IMU::get_accel_1_g() {
 }
 
 float IMU::get_accel_2_g() {
-    return lis2.get_xy_accel();
+    return 0.0f;  // lis2 not installed
 }
 
 float IMU::get_trim(int target_rpm) {

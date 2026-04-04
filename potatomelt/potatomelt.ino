@@ -35,7 +35,8 @@ void setup() {
 
     // set up I2C
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-    Wire.setClock(400000);
+    Wire.setClock(100000);
+    Wire.setTimeOut(10);
 
     // start data storage and recall
     store.init();

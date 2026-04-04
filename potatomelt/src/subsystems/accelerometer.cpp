@@ -39,8 +39,9 @@ float Accelerometer::get_z_accel() {
 float Accelerometer::get_xy_accel() {
     int16_t x, y, z;
     lis.readAxes(x, y, z);
-    float xg = lis.convertToG(400, x) - x_offset;
-    float yg = lis.convertToG(400, y) - y_offset;
-
-    return sqrt(xg*xg + yg*yg);
+    float zg = lis.convertToG(400, z);
+    // Accelerometer is mounted vertically: centripetal force acts on Z axis, not XY.
+    // z_offset was calculated as avg_z - 1.0 (assuming Z was vertical/gravity axis),
+    // so (z_offset + 1.0) recovers the true resting Z average to subtract as baseline.
+    return fabs(zg - (z_offset + 1.0f));
 }
