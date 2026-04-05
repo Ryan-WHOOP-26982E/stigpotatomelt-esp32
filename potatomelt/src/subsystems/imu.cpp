@@ -16,7 +16,7 @@ IMU::IMU() {
 }
 
 void IMU::init() {
-    lis1.init(0x18);
+    lis1.init(0x19);
 
     delay(20); // short pause for accelerometer warmup - we get weird results if we just dive right in
     set_z_offset();

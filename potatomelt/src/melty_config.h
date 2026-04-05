@@ -10,11 +10,11 @@
 #define ACCELEROMETER_HARDWARE_RADIUS_CM 2.738f
 #define LED_OFFSET_PERCENT 47
 
-#define LEFT_RIGHT_HEADING_CONTROL_DIVISOR 2.0f   // How quick steering while melting is (larger values = slower)
+#define LEFT_RIGHT_HEADING_CONTROL_DIVISOR 4.0f   // How quick steering while melting is (larger values = slower)
 #define MIN_TRACKING_RPM 400
 #define MAX_TRACKING_ROTATION_INTERVAL_US (1.0f / MIN_TRACKING_RPM) * 60 * 1000 * 1000 // don't track heading if we are this slow
 
-#define MAX_TRACKING_RPM 3000
+#define MAX_TRACKING_RPM 3500
 
 // ------------ control parameters -------------------
 #define CONTROL_TRANSLATE_DEADZONE 50
