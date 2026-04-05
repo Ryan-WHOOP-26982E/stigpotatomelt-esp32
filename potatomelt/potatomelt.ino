@@ -262,7 +262,7 @@ void loop() {
     if (++telemetry_send_counter >= TELEMETRY_SEND_EVERY_N) {
         telemetry_send_counter = 0;
         char pkt[128];
-        int n = snprintf(pkt, sizeof(pkt), "%lu,%d,%d,%.1f,%.1f,%d,%d,%lu,%.4f\n",
+        int n = snprintf(pkt, sizeof(pkt), "%lu,%d,%d,%.1f,%.1f,%d,%d,%lu,%.4f,%.3f\n",
             (unsigned long)millis(),
             (int)state,
             (int)pid_target_rpm,
@@ -271,7 +271,8 @@ void loop() {
             robot.get_battery(),
             (int)c->connected,
             (unsigned long)loop_elapsed_us,
-            robot.get_accel_trim(c->target_rpm)
+            robot.get_accel_trim(c->target_rpm),
+            robot.get_accel_1_g()   // raw (unfiltered) g reading for comparison
         );
         telemetry_udp.beginPacket(telemetry_host, TELEMETRY_UDP_PORT);
         telemetry_udp.write((uint8_t*)pkt, n);

@@ -9,6 +9,7 @@ class IMU {
         float get_accel_1_g();
         float get_accel_2_g();
         float z_accel_buffer = 0.0;
+        float accel_g_ema = 0.0f;   // EMA-filtered centripetal g reading for RPM calc
         float get_trim(int target_rpm);
     private:
         void set_z_offset();

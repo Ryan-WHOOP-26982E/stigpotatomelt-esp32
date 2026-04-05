@@ -26,7 +26,7 @@ STATE_NAMES = {
     4: "NO_CTRL",
 }
 
-FIELDS = ["ms", "state", "target_rpm", "rpm", "throttle", "bat", "connected", "loop_us", "trim"]
+FIELDS = ["ms", "state", "target_rpm", "rpm", "throttle", "bat", "connected", "loop_us", "trim", "raw_g"]
 
 
 def parse_packet(raw: bytes):
@@ -44,6 +44,7 @@ def parse_packet(raw: bytes):
             "connected":  int(parts[6]),
             "loop_us":    int(parts[7]),
             "trim":       float(parts[8]) if len(parts) > 8 else 1.0,
+            "raw_g":      float(parts[9]) if len(parts) > 9 else 0.0,
         }
     except Exception:
         return None
@@ -55,8 +56,8 @@ def run_terminal(sock):
     last_packet_time = time.monotonic()
 
     print(f"{'ms':>10}  {'state':<8}  {'RPM':>6}/{'TRPM':<6}  {'THR':>5}  "
-          f"{'BAT':>4}  {'loop_ms':>7}  {'loop_max':>8}  {'trim':>7}")
-    print("-" * 80)
+          f"{'BAT':>4}  {'loop_ms':>7}  {'loop_max':>8}  {'trim':>7}  {'raw_g':>7}")
+    print("-" * 90)
 
     while True:
         try:
@@ -79,7 +80,7 @@ def run_terminal(sock):
         print(
             f"{p['ms']:>10}  {state_name}  {p['rpm']:>6.0f}/{p['target_rpm']:<6}  "
             f"{p['throttle']:>5.0f}  {p['bat']:>3d}%  {loop_ms:>6.1f}ms  "
-            f"{loop_max:>7.1f}ms  {p['trim']:>7.4f}"
+            f"{loop_max:>7.1f}ms  {p['trim']:>7.4f}  {p['raw_g']:>7.3f}g"
         )
 
 

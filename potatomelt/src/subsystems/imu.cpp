@@ -63,8 +63,16 @@ float IMU::get_rpm(int target_rpm) {
         get_accel_correction(target_rpm);
     }
 
-    float avg_g = lis1.get_xy_accel();
-    float rpm = fabs(avg_g) * 89445.0f;
+    float raw_g = lis1.get_xy_accel();
+
+    // EMA filter on the raw g reading to reject motor vibration noise.
+    // Alpha = 0.1 → ~35ms time constant at 4ms loop rate, which smooths out
+    // high-frequency vibration while still tracking real RPM changes quickly enough.
+    // Raise alpha (toward 1.0) for faster response; lower it for more smoothing.
+    const float ACCEL_EMA_ALPHA = 0.1f;
+    accel_g_ema = ACCEL_EMA_ALPHA * raw_g + (1.0f - ACCEL_EMA_ALPHA) * accel_g_ema;
+
+    float rpm = fabs(accel_g_ema) * 89445.0f;
     rpm = rpm / ACCELEROMETER_HARDWARE_RADIUS_CM;
     rpm = sqrt(rpm);
     rpm *= accel_correction_factor;
