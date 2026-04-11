@@ -15,9 +15,9 @@ HardwareSerial SBUSSerial(1);
 SbusReader sbus_rx(&SBUSSerial, SBUS_RX_PIN, SBUS_TX_PIN);
 
 // RPM targets - adjust the list and NUM_TARGET_RPMS to taste
-int spin_target_rpms[] = {1200, 2100, 3000};
+int spin_target_rpms[] = {2100, 3200};
 float translation_trims[] = {1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2, 10.0};
-#define NUM_TARGET_RPMS 3
+#define NUM_TARGET_RPMS 2
 #define NUM_TRANS_TRIMS 13
 
 int target_rpm_index = 0;

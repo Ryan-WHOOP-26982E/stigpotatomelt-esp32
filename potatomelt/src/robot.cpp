@@ -59,12 +59,15 @@ void Robot::spin(spin_control_parameters_t* spin_params) {
 
     throttle_offset = (double) (phase_offset_fraction * spin_params->max_throttle_offset);
 
+    // dir = -1 uses DShot reverse range (1049-2047) to spin the opposite direction
+    int dir = spin_params->reverse_spin ? -1 : 1;
+
     if (time_spent_this_rotation_us >= spin_params->motor_start_phase_1 && time_spent_this_rotation_us <= spin_params->motor_start_phase_2) {
-        motor1.sendThrottleValue(perk2dshot(spin_params->throttle_perk + throttle_offset));
-        motor2.sendThrottleValue(perk2dshot(spin_params->throttle_perk - throttle_offset));
+        motor1.sendThrottleValue(perk2dshot(dir * (spin_params->throttle_perk + throttle_offset)));
+        motor2.sendThrottleValue(perk2dshot(dir * (spin_params->throttle_perk - throttle_offset)));
     } else {
-        motor1.sendThrottleValue(perk2dshot(spin_params->throttle_perk - throttle_offset));
-        motor2.sendThrottleValue(perk2dshot(spin_params->throttle_perk + throttle_offset));
+        motor1.sendThrottleValue(perk2dshot(dir * (spin_params->throttle_perk - throttle_offset)));
+        motor2.sendThrottleValue(perk2dshot(dir * (spin_params->throttle_perk + throttle_offset)));
     }
    
     // displays heading LED at correct location
@@ -94,8 +97,8 @@ void Robot::drive_tank(tank_control_parameters_t* params) {
         int forback = params->translate_forback * TANK_FORBACK_POWER_SCALE;
         int leftright = params->turn_lr * TANK_TURNING_POWER_SCALE;
 
-        motor1.sendThrottleValue(perk2dshot(forback + leftright));
-        motor2.sendThrottleValue(perk2dshot(-1 * (forback - leftright)));
+        motor1.sendThrottleValue(perk2dshot(forback - leftright));
+        motor2.sendThrottleValue(perk2dshot(-1 * (forback + leftright)));
     } else {
         motors_stop();
     }

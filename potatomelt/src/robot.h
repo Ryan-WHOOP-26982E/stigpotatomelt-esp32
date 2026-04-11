@@ -15,6 +15,7 @@ typedef struct spin_control_parameters_t {
     long motor_start_phase_1;  // time offset for when motor 1 begins translating forwards
     long motor_start_phase_2;  // time offset for when motor 2 begins translating forwards
     int battery_percent;                // battery power remaining- where on the green->red slope we should be
+    bool reverse_spin;         // true = run motors in reverse DShot direction
 };
 
 typedef struct tank_control_parameters_t {

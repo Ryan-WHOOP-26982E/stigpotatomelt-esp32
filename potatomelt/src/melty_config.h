@@ -14,7 +14,7 @@
 #define MIN_TRACKING_RPM 400
 #define MAX_TRACKING_ROTATION_INTERVAL_US (1.0f / MIN_TRACKING_RPM) * 60 * 1000 * 1000 // don't track heading if we are this slow
 
-#define MAX_TRACKING_RPM 3500
+#define MAX_TRACKING_RPM 3700
 
 // ------------ control parameters -------------------
 #define CONTROL_TRANSLATE_DEADZONE 50
@@ -26,9 +26,9 @@
 // ------------ PID tuning ---------------------------
 // Tuning PIDs is an art. See: https://pidexplained.com/how-to-tune-a-pid-controller/
 
-#define PID_KP 1.0                                  // Proportional Gain
+#define PID_KP 2.0                                  // Proportional Gain
 #define PID_KI 0.4                                  // Integral
-#define PID_KD 0.0                                  // Derivative
+#define PID_KD 0.2                                 // Derivative
 
 // ------------ SBUS receiver configuration ----------
 // Receiver TX → D7 (GPIO44) on XIAO ESP32-S3

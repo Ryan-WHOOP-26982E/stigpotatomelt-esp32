@@ -167,6 +167,7 @@ void calculate_melty_params(spin_control_parameters_t* params, ctrl_state* c) {
     params->max_throttle_offset = (int) c->translate_forback * params->throttle_perk * c->translate_trim / 1024;
 
     params->battery_percent = robot.get_battery();
+    params->reverse_spin = c->reverse_spin;
 }
 
 // Arduino loop function. Runs in CPU 1.
